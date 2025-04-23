@@ -16,7 +16,7 @@ import numpy as np
 import pandas as pd
 
 from utils import break_into_chunks
-#from plotter import Plotter
+from plotter import Plotter
 
 class Trainer:
     def __init__(self, training_file, chunksize=20, verbose=False):
@@ -110,8 +110,8 @@ class Trainer:
         stats_path = self.save_statistics(stats)
 
         # Optionally visualize results
-        #plotter = Plotter(self.training_file, stats, self.chunksize)
-        #plotter.plot_all()
+        plotter = Plotter(self.training_file, stats, self.chunksize)
+        plotter.plot_overall()
 
         return stats_path
 
