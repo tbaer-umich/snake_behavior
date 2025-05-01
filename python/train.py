@@ -7,6 +7,9 @@ This script defines a Trainer class that:
   - Computes per-chunk means and covariances (baseline: no outlier removal)
   - Saves behavior statistics to JSON and optionally invokes a plotter for visualization
 """
+import warnings
+warnings.filterwarnings("ignore", message="logm result may be inaccurate")
+
 import argparse
 import sys
 import logging
@@ -23,7 +26,16 @@ class Trainer:
         self.verbose = verbose
         self.training_file = training_file
         self.chunksize = chunksize
-        self.setup_logging(verbose)
+        if args.verbose:
+            logging.basicConfig(level=logging.DEBUG,
+                                format='%(asctime)s | %(levelname)-8s | %(name)s | %(message)s',
+                                datefmt='%Y-%m-%d %H:%M:%S')
+        else:
+            logging.basicConfig(level=logging.INFO,
+                                format='%(asctime)s | %(levelname)-8s | %(name)s | %(message)s',
+                                datefmt='%Y-%m-%d %H:%M:%S')
+        # Suppress verbose matlplotlib debug logs
+        logging.getLogger('matplotlib').setLevel(logging.WARNING)
         self.logger = logging.getLogger(self.__class__.__name__)
 
 
@@ -114,16 +126,6 @@ class Trainer:
         plotter.plot_overall()
 
         return stats_path
-
-    @staticmethod
-    def setup_logging(verbose: bool):
-        level = logging.DEBUG if verbose else logging.INFO
-        logging.basicConfig(
-            level=level,
-            format='%(asctime)s | %(levelname)-8s | %(name)s | %(message)s',
-            datefmt='%Y-%m-%d %H:%M:%S'
-        )
-
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Train a snake behavior classifier by computing per-behavior statistics')
