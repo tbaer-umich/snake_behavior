@@ -13,7 +13,7 @@ This repository provides a simple Python-based pipeline to **train** a basic beh
 ├── utils.py            # Helper: chunk-splitting function
 ├── training_data/      # Datasets used for training
 ├── data/               # Data we want to evaluate
-├── categorized_data/   # This is where our data goes after we evaluate it
+├── categorized_data/   # Evaluated data
 ├── plots/              # Where .pdf outputs are stored by default
 └── README.md           # This file
 ```
