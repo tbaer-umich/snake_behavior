@@ -10,17 +10,17 @@ As a first step, you should have **Python 3.7+** installed on your machine. If y
 python --version
 ```
 This should give you the currently installed python version.
-You will also need some external packages to run this code, do install these dependencies running the following command in your terminal:
+You will also need some external packages to run this code, to install these dependencies running the following command in your terminal:
 ```bash
 pip install numpy pandas matplotlib scipy
 ```
-If you encounter errors with this (you may see something like this), we will need to install a virtual enviroment.
+If you encounter errors installing these packages (you may see something like this), we will need to install a virtual enviroment.
 ```ansi
-[31merror[0m: externally-managed-environment
+error: externally-managed-environment
 × This environment is externally managed
 └─> To install Python packages system-wide, try brew install <package>
 ```
-Installing a virtual enviroment is straight forward, just type (or copy) the following into the terminal prompt:
+Installing a virtual enviroment is thankfully straight forward, just type (or copy) the following into the terminal prompt:
 ```bash
 python3 -m venv venv
 source venv/bin/activate
@@ -35,7 +35,9 @@ source venv/bin/activate
 ---
 
 ## Installation
-Installation is simple. To install this repository on to your local machine you will want to navigate (using the `cd` command) to a convienient location where you wish to download it. For example your Desktop, and then run the `git clone` command which "checks out" a version of the github repository locally. Then you can enter the direcotry (named `snake_behavior`) using the `cd` command.
+Installation is simple. To install this repository on to your local machine you will want to navigate (using the `cd` command) to a convienient location where you wish to download it. 
+
+Here is an example of terminal caommands to navigate to your Desktop, run the `git clone` command which "checks out" a version of the github repository locally, and then enter the direcotry (named `snake_behavior`) using the `cd` command.
 ```bash
 cd Desktop/
 git clone git@github.com:tbaer-umich/snake_behavior.git
@@ -45,7 +47,7 @@ cd snake_behavior
 
 ## File Structure
 Once downloaded, youn should find the following folder & files in the repository:
-You can view these either by navigating to the folder in Finder or more convieniently running the command `ls -l` which shows everthing located in a folder/(directory)
+You can view these either by navigating to the folder in Finder or more convieniently by running the command `ls -l` in the terminal which shows everthing located in a folder/(directory)
 ```
 ├── train.py            # Trainer class & script
 ├── evaluate.py         # Evaluator class & script
