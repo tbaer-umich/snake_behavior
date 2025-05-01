@@ -34,8 +34,8 @@ This repository provides a simple Python-based pipeline to **train** a basic beh
 
 1. Clone this repo:
    ```bash
-   git clone <your-repo-url>
-   cd <repo-directory>
+   git clone git@github.com:tbaer-umich/snake_behavior.git
+   cd snake_behavior
    ```
 2. Install dependencies:
    ```bash
