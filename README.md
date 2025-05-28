@@ -40,7 +40,7 @@ Installation is simple. To install this repository on to your local machine you 
 Here is an example of terminal caommands to navigate to your Desktop, run the `git clone` command which "checks out" a version of the github repository locally, and then enter the direcotry (named `snake_behavior`) using the `cd` command.
 ```bash
 cd Desktop/
-git clone git@github.com:tbaer-umich/snake_behavior.git
+git clone https://github.com/tbaer-umich/snake_behavior.git
 cd snake_behavior
 ```
 
@@ -49,10 +49,11 @@ cd snake_behavior
 Once downloaded, youn should find the following folder & files in the repository:
 You can view these either by navigating to the folder in Finder or more convieniently by running the command `ls -l` in the terminal which shows everthing located in a folder/(directory)
 ```
-├── train.py            # Trainer class & script
-├── evaluate.py         # Evaluator class & script
-├── plotter.py          # Plotter class & CLI
-├── utils.py            # Helper: chunk-splitting function
+├── python/               # All main Python scripts
+│   ├── train.py          # Trainer class & script
+│   ├── evaluate.py       # Evaluator class & script
+│   ├── plotter.py        # Plotter class & CLI
+│   └── utils.py          # Helper: chunk-splitting function
 ├── training_data/      # Datasets used for training
 ├── data/               # Data we want to evaluate
 ├── categorized_data/   # Evaluated data
@@ -88,7 +89,6 @@ To run script, we must call the python command `python train.py` with some addit
 ```bash
 python train.py \
   -i ./path/to/train_data.csv   # required: your labeled CSV training data
-  -o output_dir                 # optional: where to save JSON + plots (default `output`)
   -c 20                         # optional: chunk size in samples (default 20)
   -v                            # optional: verbose logging
 ```
@@ -96,7 +96,7 @@ python train.py \
 **Example:**
 If you are on the terminal inside of the `snake_behavior` folder, you should be able to run the training via this command:
 ```bash
-python python/train.py -i ./training_data/labeled_data_0p8s.csv -o classifier -c 20 -v
+python python/train.py -i ./training_data/labeled_data_0p8s.csv -c 20 -v
 ```
 After running, you’ll find:
 - `./classifier/training_stats.json` (the extracted information from the training)
@@ -107,7 +107,7 @@ After running, you’ll find:
 ## Evaluator (`evaluate.py`)
 
 **Purpose:**
-- Load a **trained** classifier JSON (or auto-train if missing). #TODO: test if auto-training works
+- Load a **trained** classifier JSON (or auto-train if missing). #TODO: test if auto-training works (it does not as the args aren't passed to the `Trainer` class)
 - Load new **unlabeled** CSV with columns `[Date, Time, accX, accY, accZ]`.
 - Split into chunks, compute covariance per chunk, measure AIRM distance to each behavior’s average covariance, assign best-match label.
 - Save a new CSV with a `Behavior` column and optionally generate plots & debug visuals.
