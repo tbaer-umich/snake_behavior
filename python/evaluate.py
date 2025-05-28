@@ -7,7 +7,7 @@ Evaluator class to:
   2. Load new accelerometer CSV (Date,Time,accX,accY,accZ)
   3. Split into fixed-size chunks, compute each chunk's covariance
   4. Compute AIRM distance to each behavior mean covariance and assign labels
-  5. Save classified data to CSV with new Behavior column
+  5. Save classified data to CSV with new behavior column
   6. Use Plotter to generate per-behavior 2D/3D plots of classified data
   7. Optionally generate debug plots for top/bottom X% confident chunks
 """
@@ -27,15 +27,41 @@ import matplotlib.pyplot as plt
 from matplotlib.collections import LineCollection
 from mpl_toolkits.mplot3d.art3d import Line3DCollection
 
+from classifier import Classifier
+
 from utils import break_into_chunks
 from train import Trainer
 from plotter import Plotter
 
 class Evaluator:
-    def __init__(self, args):
-        self.args = args
+    def __init__(self,
+        model_file: str,
+        new_data_file: str,
+        training_input: str,
+        chunksize: int,
+        output_csv: str,
+        eval_plots_dir: str,
+        verbose: bool = False,
+        skip_normal_plots: bool = False,
+        debug_behaviors: list[str] = None,
+        debug_top_percent: float = 0.1,
+        debug_bottom_percent: float = 0.1,
+    ):
+
+        self.model_file = model_file
+        self.new_data_file = new_data_file
+        self.training_input = training_input
+        self.chunksize = chunksize
+        self.output_csv = output_csv
+        self.eval_plots_dir = eval_plots_dir
+        self.verbose = verbose
+        self.skip_normal_plots = skip_normal_plots
+        self.debug_behaviors = debug_behaviors
+        self.debug_top_percent = debug_top_percent
+        self.debug_bottom_percent = debug_bottom_percent
+
         self.logger = logging.getLogger(self.__class__.__name__)
-        if args.verbose:
+        if self.verbose:
             logging.basicConfig(level=logging.DEBUG,
                                 format='%(asctime)s | %(levelname)-8s | %(name)s | %(message)s',
                                 datefmt='%Y-%m-%d %H:%M:%S')
@@ -48,14 +74,9 @@ class Evaluator:
         self.logger = logging.getLogger(self.__class__.__name__)
 
         # Ensure output directories
-        os.makedirs(os.path.dirname(args.model_file) or '.', exist_ok=True)
-        os.makedirs(os.path.dirname(args.output_csv) or '.', exist_ok=True)
-        os.makedirs(args.eval_plots_dir, exist_ok=True)
-
-        self.model_file = args.model_file
-        self.new_data_file = args.input
-        self.chunksize = args.chunksize
-        self.training_input = args.train_input
+        os.makedirs(os.path.dirname(self.model_file) or '.', exist_ok=True)
+        os.makedirs(os.path.dirname(self.output_csv) or '.', exist_ok=True)
+        os.makedirs(self.eval_plots_dir, exist_ok=True)
 
     def load_or_train_model(self):
         if not os.path.isfile(self.model_file):
@@ -74,55 +95,21 @@ class Evaluator:
         # Map label -> behavior name
         self.behavior_map = {lbl: info['behavior'] for lbl,info in self.stats.items()}
         self.logger.info(f"Loaded model with behaviors: {list(self.stats.keys())}")
-
-    def airm_distance(self, cov1, cov2, eps=1e-8):
-        cov1_reg = cov1 + eps * np.eye(cov1.shape[0])
-        cov2_reg = cov2 + eps * np.eye(cov2.shape[0])
-        sqrt_cov1 = sqrtm(cov1_reg)
-        inv_sqrt = np.linalg.inv(sqrt_cov1)
-        inner = inv_sqrt @ cov2_reg @ inv_sqrt
-        log_inner = logm(inner)
-        return norm(log_inner, 'fro')
+        self.classifier = Classifier(self.stats, self.chunksize)
 
     def evaluate(self):
+        # Load raw data and run the shared classifier
         df = pd.read_csv(self.new_data_file)
-        # Keep original columns, but ensure acc columns exist
-        for col in ['accX','accY','accZ']:
-            if col not in df.columns:
-                self.logger.error(f"Missing required column: {col}")
-                sys.exit(1)
-        n = len(df)
-        df['PredictedBehavior'] = ''
+        df, assigned = self.classifier.classify(df)
 
-        # Chunk new data
-        chunks = break_into_chunks(df, self.chunksize)
-        assigned = []  # list of (start,end,label,dist)
-
-        # Compute covariances and assign
-        for start,end in chunks:
-            block = df[['accX','accY','accZ']].iloc[start:end].values
-            if block.shape[0] < 2:
-                label = 'u'; dist = np.nan
-            else:
-                cov = np.cov(block, rowvar=False)
-                # Compute distances to each behavior
-                dists = {}
-                for lbl, info in self.stats.items():
-                    avg_cov = np.array(info['average_covariance'])
-                    dists[lbl] = self.airm_distance(cov, avg_cov)
-                # Pick best
-                label = min(dists, key=dists.get)
-                dist  = dists[label]
-            assigned.append((start, end, label, dist))
-            df.loc[start:end-1, 'PredictedBehavior'] = label
-
-        # Attach final Behavior column
-        df['Behavior'] = df['PredictedBehavior']
+        # mirror old behavior column
+        df['behavior'] = df['predictedBehavior']
         self.assigned = assigned
         self.df = df
-        # Save classified data
-        df.to_csv(self.args.output_csv, index=False)
-        self.logger.info(f"Saved classified data to {self.args.output_csv}")
+
+        # persist results
+        df.to_csv(self.output_csv, index=False)
+        self.logger.info(f"Saved classified data to {self.output_csv}")
 
     def _plot_debug_chunks(self, chunks, label, which, percent):
         """
@@ -201,7 +188,7 @@ class Evaluator:
 
         # Normal plots
         if not self.args.skip_normal_plots:
-            # Use Plotter on new data; Plotter expects a Behavior column
+            # Use Plotter on new data; Plotter expects a behavior column
             eval_stats = {lbl: {'behavior': name} for lbl,name in self.behavior_map.items()}
             plotter = Plotter(self.args.output_csv, eval_stats, self.chunksize,
                               output_dir=self.args.eval_plots_dir)
@@ -247,6 +234,18 @@ if __name__ == '__main__':
                         help='path to save classified CSV')
     args = parser.parse_args()
 
-    evaluator = Evaluator(args)
+    evaluator = Evaluator(
+        model_file         = args.model_file,
+        new_data_file      = args.input,
+        training_input     = args.train_input,
+        chunksize          = args.chunksize,
+        output_csv         = args.output_csv,
+        eval_plots_dir     = args.eval_plots_dir,
+        verbose            = args.verbose,
+        skip_normal_plots  = args.skip_normal_plots,
+        debug_behaviors    = args.debug_behaviors,
+        debug_top_percent  = args.debug_top_percent,
+        debug_bottom_percent = args.debug_bottom_percent,
+    )
     evaluator.run()
 

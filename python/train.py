@@ -3,7 +3,7 @@
 train.py
 
 This script defines a Trainer class that:
-  - Loads a labeled training dataset (accX, accY, accZ, Behavior)
+  - Loads a labeled training dataset (accX, accY, accZ, behavior)
   - Computes per-chunk means and covariances (baseline: no outlier removal)
   - Saves behavior statistics to JSON and optionally invokes a plotter for visualization
 """
@@ -22,11 +22,15 @@ from utils import break_into_chunks
 from plotter import Plotter
 
 class Trainer:
-    def __init__(self, training_file, chunksize=20, verbose=False):
+    def __init__(self,
+                 training_file: str,
+                 chunksize: int = 20,
+                 verbose: bool = False):
         self.verbose = verbose
         self.training_file = training_file
         self.chunksize = chunksize
-        if args.verbose:
+        self.verbose = verbose
+        if self.verbose:
             logging.basicConfig(level=logging.DEBUG,
                                 format='%(asctime)s | %(levelname)-8s | %(name)s | %(message)s',
                                 datefmt='%Y-%m-%d %H:%M:%S')
@@ -77,7 +81,7 @@ class Trainer:
         stats = {}
 
         for label, name in behavior_map.items():
-            df_sub = df[df['Behavior'] == label].copy()
+            df_sub = df[df['behavior'] == label].copy()
             df_sub.sort_index(inplace=True)
             if df_sub.empty:
                 self.logger.warning(f"No data for behavior '{label}' ({name}), skipping.")
@@ -107,10 +111,22 @@ class Trainer:
         return stats
 
     def save_statistics(self, stats):
+        # derive the “time period” (e.g. 0.8s or 5.0s) from the filename
+        base = os.path.basename(self.training_file)
+        name, _ = os.path.splitext(base)
+        time_label = name.split('_')[-1]
+
         out_dir = "./classifier/"
-        if not os.path.exists(out_dir):
-            os.makedirs(out_dir)
-        out_path = os.path.join(out_dir, 'training_stats.json')
+        os.makedirs(out_dir, exist_ok=True)
+        out_name = f"training_stats_{time_label}.json"
+        out_path = os.path.join(out_dir, out_name)
+
+        out_dir = "./classifier/"
+        os.makedirs(out_dir, exist_ok=True)
+        # include an underscore before the label, and .json at the end
+        out_name = f"training_stats_{time_label}.json"
+        out_path = os.path.join(out_dir, out_name)
+
         with open(out_path, 'w') as f:
             json.dump(stats, f, indent=2)
         self.logger.info(f"Saved training statistics to {out_path}")

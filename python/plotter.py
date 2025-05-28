@@ -35,7 +35,7 @@ class Plotter:
           - 3D trajectory plots split by chunk
         """
         for label, info in self.stats.items():
-            df_sub = self.df[self.df['Behavior'] == label]
+            df_sub = self.df[self.df['behavior'] == label]
             if df_sub.empty:
                 continue
             chunks = break_into_chunks(df_sub, self.chunk_size)
@@ -117,7 +117,7 @@ class Plotter:
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Plot evaluated data CSV by behavior')
-    parser.add_argument('-e', '--eval-csv', required=True, help='evaluated data CSV with Behavior column')
+    parser.add_argument('-e', '--eval-csv', required=True, help='evaluated data CSV with behavior column')
     parser.add_argument('-c', '--chunksize', type=int, default=20, help='samples per chunk')
     parser.add_argument('-o', '--output-dir', default='plots', help='directory to save plots')
     parser.add_argument('-v', '--verbose', action='store_true', help='enable debug logs')
@@ -125,7 +125,7 @@ if __name__ == '__main__':
     # Build minimal stats mapping
     import pandas as pd
     df = pd.read_csv(args.eval_csv)
-    stats = {lbl: {'behavior': lbl} for lbl in df['Behavior'].unique()}
+    stats = {lbl: {'behavior': lbl} for lbl in df['behavior'].unique()}
     plotter = Plotter(args.eval_csv, stats, args.chunksize, output_dir=args.output_dir)
     plotter.plot_overall()
 
