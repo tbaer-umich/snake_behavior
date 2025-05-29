@@ -52,24 +52,28 @@ You can view these either by navigating to the folder in Finder or more convieni
 ├── python/               # All main Python scripts
 │   ├── train.py          # Trainer class & script
 │   ├── evaluate.py       # Evaluator class & script
+│   ├── classifier.py     # Shared classification logic (used by evaluate & validate)
+│   ├── validate.py       # Validator class & script for labeled data
 │   ├── plotter.py        # Plotter class & CLI
 │   └── utils.py          # Helper: chunk-splitting function
-├── training_data/      # Datasets used for training
-├── data/               # Data we want to evaluate
-├── categorized_data/   # Evaluated data
-├── plots/              # Where .pdf outputs are stored by default
-└── .gitignore          # A backend file to help setup git (may be invisible)
-└── README.md           # This file
+├── classifier/           # Generated JSON models (e.g. training_stats_*.json)
+├── training_data/        # Datasets used for training
+├── data/                 # Data we want to evaluate
+├── categorized_data/     # Evaluated data (CSV outputs)
+├── plots/                # Where .pdf outputs are stored by default
+└── .gitignore            # Excluded files
+└── README.md             # This file
 ```
 
 ---
 
 ## Workflow Overview
 
-So how do we use this classifier? There are three main files which each serve a different purpose throughout the workflow. In order, the workflow is:
+So how do we use this classifier? There are four main files which each serve a different purpose throughout the workflow. In order, the workflow is:
 1. **Train** a classifier on labeled data using `train.py`.
 2. **Evaluate** new, unlabeled accelerometer data with `evaluate.py`.
-3. **Visualize** results during training or evaluation via `plotter.py` (or the built‑in plot calls in the scripts).
+3. **Validate** classifier performance against held-out labeled data using `validate.py`.
+4. **Visualize** results during training or evaluation via `plotter.py` (or the built-in plot calls in the scripts).
 Now let's go into some more detail on how to run each of these files.
 
 ---
@@ -127,6 +131,8 @@ python evaluate.py \
   --debug-behaviors s t             # optional: e.g. ['s','t'] to debug specific classes
   --debug-top-percent 0.1           # optional: fraction of top-confidence chunks to plot
   --debug-bottom-percent 0.1        # optional: fraction of low-confidence chunks to plot
+  --supervised                      # prompt on borderline chunks during evaluation
+  --borderline-threshold 0.1        # relative margin under which a chunk is “borderline”
   -v                                # verbose logging
 ```
 
@@ -159,8 +165,26 @@ python plotter.py \
   -o plots/                 # output directory (default `plots`)
   -v                        # verbose logging
 ```
-
 This produces `<prefix>_<behavior>_2d_cross.pdf` and `<prefix>_<behavior>_3d.pdf` in `plots/`.
+
+## Validator (validate.py)
+
+Purpose:
+- Load a trained classifier JSON
+- Load labeled CSV with columns [accX, accY, accZ, behavior]
+- Classify via the same Classifier logic (with optional --supervised mode)
+- Compute and log overall validation accuracy
+- Append validation_accuracy to the JSON model file
+
+Usage:
+```bash
+python validate.py \
+  -m classifier/training_stats.json \   # your model JSON
+  -l training_data/labeled_data_5p0s.csv \
+  -c 20 \                               # chunk size
+  –-supervised \                        # optional live prompting
+  –-borderline-threshold 0.1            # optional sensitivity
+```
 
 ---
 
