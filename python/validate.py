@@ -31,6 +31,10 @@ def main():
                         help='path to labeled CSV (must include behavior column: accX,accY,accZ,behavior)')
     parser.add_argument('--chunksize', '-c', type=int, default=20,
                         help='number of samples per chunk')
+    parser.add_argument('--supervised', action='store_true',
+                        help='prompt on borderline chunks during validation')
+    parser.add_argument('--borderline-threshold', type=float, default=0.1,
+                        help='relative margin under which a chunk is considered borderline')
     args = parser.parse_args()
 
     # Set up logging to match evaluate.py format
@@ -64,7 +68,13 @@ def main():
     df_unlabeled = df_labeled[['accX','accY','accZ']].copy()
 
     # Instantiate classifier and classify
-    clf = Classifier(stats, args.chunksize)
+    clf = Classifier(
+        stats,
+        args.chunksize,
+        model_file=args.model_file,
+        supervised=args.supervised,
+        borderline_threshold=args.borderline_threshold
+    )
     df_pred, _ = clf.classify(df_unlabeled)
 
     # Compare predictions to truth

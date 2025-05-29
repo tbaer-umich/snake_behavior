@@ -46,6 +46,8 @@ class Evaluator:
         debug_behaviors: list[str] = None,
         debug_top_percent: float = 0.1,
         debug_bottom_percent: float = 0.1,
+        supervised: bool = False,
+        borderline_threshold: float = 0.1
     ):
 
         self.model_file = model_file
@@ -95,7 +97,14 @@ class Evaluator:
         # Map label -> behavior name
         self.behavior_map = {lbl: info['behavior'] for lbl,info in self.stats.items()}
         self.logger.info(f"Loaded model with behaviors: {list(self.stats.keys())}")
-        self.classifier = Classifier(self.stats, self.chunksize)
+        # instantiate classifier logic
+        self.classifier = Classifier(
+            self.stats,
+            self.chunksize,
+            model_file=self.model_file,
+            supervised=self.supervised,
+            borderline_threshold=self.borderline_threshold
+        )
 
     def evaluate(self):
         # Load raw data and run the shared classifier
@@ -232,6 +241,10 @@ if __name__ == '__main__':
                         help='fraction of least confident chunks to debug-plot')
     parser.add_argument('-o', '--output-csv', default='classified.csv',
                         help='path to save classified CSV')
+    parser.add_argument('--supervised', action='store_true',
+                        help='prompt on borderline chunks during classification')
+    parser.add_argument('--borderline-threshold', type=float, default=0.1,
+                        help='relative margin under which a chunk is considered borderline')
     args = parser.parse_args()
 
     evaluator = Evaluator(
@@ -246,6 +259,8 @@ if __name__ == '__main__':
         debug_behaviors    = args.debug_behaviors,
         debug_top_percent  = args.debug_top_percent,
         debug_bottom_percent = args.debug_bottom_percent,
+        supervised         = args.supervised,
+        borderline_threshold = args.borderline_threshold,
     )
     evaluator.run()
 

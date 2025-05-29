@@ -104,7 +104,7 @@ class Plotter:
         fname = f"{self.prefix}_{label}_3d.pdf"
         fig.savefig(os.path.join(self.output_dir, fname)); plt.close(fig)
 
-    def plot_time_series(self, df_sub, label):
+    def plot_time_series(self, df_sub, label, interactive: bool = False):
         t = np.arange(len(df_sub))
         fig, ax = plt.subplots()
         ax.plot(t, df_sub['accX'], label='accX')
@@ -113,7 +113,11 @@ class Plotter:
         ax.set_title(f"{label.upper()} Time Series")
         ax.legend()
         fname = f"{self.prefix}_{label}_timeseries.pdf"
-        fig.savefig(os.path.join(self.output_dir, fname)); plt.close(fig)
+        if interactive:
+            plt.show()
+        else:
+            fig.savefig(os.path.join(self.output_dir, fname))
+            plt.close(fig)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Plot evaluated data CSV by behavior')
