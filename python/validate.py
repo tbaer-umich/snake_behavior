@@ -87,6 +87,27 @@ def main():
     accuracy = np.mean(preds == truth)
     logger.info(f"Validation accuracy: {accuracy*100:.2f}%")
 
+    # Misclassification summary per behavior
+    behavior_types = np.unique(truth)
+    for behavior in behavior_types:
+        idx = truth == behavior
+        total = np.sum(idx)
+        correct = np.sum(preds[idx] == behavior)
+        mis = total - correct
+        logger.info(
+            f"Behavior '{behavior}': {correct}/{total} correct, "
+            f"{mis}/{total} misclassified ({mis/total*100:.2f}%)"
+        )
+        for poss_prediction in behavior_types:
+            if poss_prediction == behavior:
+                continue
+            count = np.sum((truth == behavior) & (preds == poss_prediction))
+            if count > 0:
+                logger.info(
+                    f"    Misclassified as '{poss_prediction}': {count} "
+                    f"({count/total*100:.2f}%)"
+                )
+
     # Append accuracy to the model JSON
     try:
         with open(args.model_file, 'r+') as f:
