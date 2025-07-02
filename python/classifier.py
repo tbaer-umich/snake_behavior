@@ -43,7 +43,8 @@ class Classifier:
         self.supervised = supervised
         self.threshold = borderline_threshold
         # manual default distance scaling; adjust here as needed
-        self.scale = {'s': 5.0, 't': 1.0, 'l': 1.0}
+        self.scale = {'s': 1.0, 't': 1.0, 'l': 1.0}
+        self.sampling_rate = 25  # samples per second
         # for two-phase strike bookending
         self._pending_strike_idx = None
 
@@ -56,41 +57,100 @@ class Classifier:
         log_inner = logm(inner)
         return norm(log_inner, 'fro')
 
-    def additional_requirements(self, idx: int, label: str, assigned: list) -> str:
+    def bookended_by_stillness_chunks(self, idx: int, assigned: list) -> bool:
         """
-        Hook for any extra chunk‐level rules.  Currently:
-          - strikes ('t') must be preceded and followed by still ('s'), or else
-            we demote them to locomotion ('l').
-        idx       = index of this chunk in the full chunks list
-        label     = the raw label chosen by distance
-        assigned  = list of prior (start,end,label,dist) tuples
+        Original two-phase bookending:
+         Phase 2: confirm or reject any pending strike
+         Phase 1: if this chunk is a raw 't', require previous was 's'
         """
-
-        """
-        Two‐phase bookending for strikes:
-         1) If a chunk looks like 't' with a preceding 's', we tentatively
-            accept and store its index.
-         2) On the very next chunk, if it's not 's', we go back and demote
-            that pending strike to 'l'.
-        """
-        # Phase 2: confirm or reject a pending strike from the last chunk
+        # need at least one chunk before and after
+        if idx <= 0 or idx >= len(assigned) - 1:
+            return False
+        prev_lbl = assigned[idx - 1][2]
+        next_lbl = assigned[idx + 1][2]
+        return prev_lbl == 's' and next_lbl == 's'
+        # Phase 2: resolve pending strike from prior chunk
         if self._pending_strike_idx is not None:
-            if label != 's':
+            # if this chunk isn't still, demote the pending strike
+            if assigned[idx][2] != 's':
                 p = self._pending_strike_idx
                 start, end, _, dist = assigned[p]
                 assigned[p] = (start, end, 'l', dist)
             self._pending_strike_idx = None
 
-        # Phase 1: when we see a raw 't', require previous was 's'
-        if label == 't' and idx > 0:
+        # Phase 1: when we see a raw 't', check previous was 's'
+        raw_label = assigned[idx][2]
+        if raw_label == 't' and idx > 0:
             prev_lbl = assigned[idx - 1][2]
             if prev_lbl == 's':
-                # tentatively accept—will confirm on next chunk
+                # tentatively accept; will confirm on next chunk
                 self._pending_strike_idx = idx
-                return 't'
+                return True
             else:
                 # immediate demotion
-                return 'l'
+                return False
+
+        # non-strikes or default pass
+        return True
+
+    def bookended_by_stillness_neighborhood(self, idx: int, assigned: list) -> bool:
+        """
+        New bookending logic: check stillness within ±2.5s around the 1s strike window.
+        """
+        # ensure valid strike candidate
+        start, end, label, _ = assigned[idx]
+        if label != 't':
+            return False
+        # find center of strike: highest variance sample
+        block = self.df_all[['accX', 'accY', 'accZ']].iloc[start:end]
+        variances = block.var(axis=1)
+        center_i = variances.idxmax()
+        # define windows in samples
+        radius = int(2.5 * self.sampling_rate)  # 2.5s neighborhood
+        strike_win = int(1.0 * self.sampling_rate)  # 1s strike
+        half_strike = strike_win // 2
+        # compute slice bounds, clamp to data range
+        before_start = max(0, center_i - radius)
+        before_end   = max(before_start, center_i - half_strike)
+        after_start  = min(len(self.df_all), center_i + half_strike)
+        after_end    = min(len(self.df_all), center_i + radius)
+
+        def region_is_still(i_start: int, i_end: int) -> bool:
+            if i_end <= i_start:
+                return False
+            df_region = self.df_all[['accX', 'accY', 'accZ']].iloc[i_start:i_end]
+            cov = np.cov(df_region.values, rowvar=False)
+            dists = {
+                lbl: self.scale[lbl] * self.airm_distance(
+                    cov, np.array(info['average_covariance'])
+                )
+                for lbl, info in self.stats.items()
+            }
+            pred = min(dists, key=dists.get)
+            return pred == 's'
+
+        # require both pre- and post-strike regions to be still
+        if not region_is_still(before_start, before_end):
+            return False
+        if not region_is_still(after_start, after_end):
+            return False
+        return True
+
+    def additional_requirements(self, idx: int, label: str, assigned: list) -> str:
+        """
+        Hook for extra chunk‐level rules. Now supports two bookending approaches:
+          - chunk-based (bookended_by_stillness_chunks)
+          - neighborhood-based (bookended_by_stillness_neighborhood)
+
+        We preserve the old two-phase code in comments for reference.
+        """
+        # Approach 1: original two-phase chunk bookending
+        #if label == 't' and not self.bookended_by_stillness_chunks(idx, assigned):
+        #    return 'l'
+
+        # Approach 2: neighborhood-based method (comment out to compare)
+        if label == 't' and not self.bookended_by_stillness_neighborhood(idx, assigned):
+            return 'l'
 
         return label
 
@@ -123,6 +183,8 @@ class Classifier:
         """
         df = df.copy()
         df['predictedBehavior'] = ''
+        # keep full trace for neighborhood logic
+        self.df_all = df
         chunks = break_into_chunks(df, self.chunksize)
         assigned = []
 
