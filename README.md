@@ -61,7 +61,7 @@ You can view these either by navigating to the folder in Finder or more convieni
 ├── data/                 # Data we want to evaluate
 ├── categorized_data/     # Evaluated data (CSV outputs)
 ├── plots/                # Where .pdf outputs are stored by default
-└── .gitignore            # Excluded files
+├─── .gitignore            # Excluded files
 └── README.md             # This file
 ```
 
