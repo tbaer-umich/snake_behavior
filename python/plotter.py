@@ -119,6 +119,30 @@ class Plotter:
             fig.savefig(os.path.join(self.output_dir, fname))
             plt.close(fig)
 
+    def plot_strike_debug(self, df, strike_start, strike_end, center_idx=None):
+        fig, ax = plt.subplots(3, 1, figsize=(10, 6), sharex=True)
+        time = np.arange(len(df)) / 25.0  # seconds
+
+        labels = ['accX', 'accY', 'accZ']
+        for i, col in enumerate(labels):
+            ax[i].plot(time, df[col], label=col)
+            ax[i].axvline(strike_start / 25.0, color='red', linestyle='--', label='strike window' if i == 0 else None)
+            ax[i].axvline(strike_end / 25.0, color='red', linestyle='--')
+            ax[i].axvline(0, color='black', linestyle='-', label='neighborhood start' if i == 0 else None)
+            ax[i].axvline((len(df)-1)/25.0, color='black', linestyle='-', label='neighborhood end' if i == 0 else None)
+            if center_idx is not None:
+                ax[i].axvline(center_idx / 25.0, color='purple', linestyle=':', label='strike center' if i == 0 else None)
+            ax[i].legend(loc='upper right')
+            ax[i].set_ylabel(col)
+
+        ax[-1].set_xlabel("Time (s)")
+        fig.suptitle(self.prefix)
+        plt.tight_layout()
+        os.makedirs(self.output_dir, exist_ok=True)
+        out_path = os.path.join(self.output_dir, f"{self.prefix}.png")
+        plt.savefig(out_path)
+        plt.close()
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Plot evaluated data CSV by behavior')
     parser.add_argument('-e', '--eval-csv', required=True, help='evaluated data CSV with behavior column')

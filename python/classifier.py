@@ -25,7 +25,8 @@ class Classifier:
                  chunksize: int,
                  model_file: str = None,
                  supervised: bool = False,
-                 borderline_threshold: float = 0.1):
+                 borderline_threshold: float = 0.1,
+                 debug_strikes: bool = False):
         """
         stats: loaded JSON stats mapping label -> dict with 'average_covariance'
         chunksize: number of samples per chunk
@@ -42,8 +43,9 @@ class Classifier:
         self.model_file = model_file
         self.supervised = supervised
         self.threshold = borderline_threshold
+        self.debug_strikes = debug_strikes
         # manual default distance scaling; adjust here as needed
-        self.scale = {'s': 1.0, 't': 1.0, 'l': 1.0}
+        self.scale = {'s': 0.75, 't': 0.5, 'l': 1.0}
         self.sampling_rate = 25  # samples per second
         # for two-phase strike bookending
         self._pending_strike_idx = None
@@ -119,7 +121,7 @@ class Classifier:
             if i_end <= i_start:
                 return False
             df_region = self.df_all[['accX', 'accY', 'accZ']].iloc[i_start:i_end]
-            cov = np.cov(df_region.values, rowvar=False)
+            cov = 0.75*np.cov(df_region.values, rowvar=False) # manually editing this region_is_still distance
             dists = {
                 lbl: self.scale[lbl] * self.airm_distance(
                     cov, np.array(info['average_covariance'])
@@ -193,12 +195,25 @@ class Classifier:
             if block.shape[0] < 2:
                 raw, dist = 'u', np.nan
             else:
-                cov = np.cov(block, rowvar=False)
-                # compute and scale distances
-                dists = {
-                    lbl: self.scale[lbl] * self.airm_distance(cov, np.array(info['average_covariance']))
-                    for lbl, info in self.stats.items()
-                }
+                dists = {}
+                for lbl, info in self.stats.items():
+                    if lbl == 't':
+                        # Use 1s center window for strikes
+                        per_sample_var = np.var(block, axis=1)
+                        center_idx = np.argmax(per_sample_var)
+                        half = self.sampling_rate // 2  # 0.5s
+                        w_start = max(center_idx - half, 0)
+                        w_end = min(center_idx + half + 1, block.shape[0])
+                        strike_block = block[w_start:w_end]
+                        if strike_block.shape[0] >= 2:
+                            cov = np.cov(strike_block, rowvar=False)
+                        else:
+                            cov = np.eye(3)
+                    else:
+                        cov = np.cov(block, rowvar=False)
+                    dists[lbl] = self.scale[lbl] * self.airm_distance(
+                        cov, np.array(info['average_covariance'])
+                    )
                 sorted_lbls = sorted(dists, key=dists.get)
                 raw = sorted_lbls[0]
                 dist = dists[raw]
@@ -210,9 +225,40 @@ class Classifier:
                         raw = self._prompt_user_for_chunk(df.iloc[start:end], idx)
 
             # apply non-distance related requirements
-            #label = self.additional_requirements(idx, raw, assigned)
-            label = raw # bypass the additional requirements for now (since strikes aren't bookended in the validation dataset)
+            temp_assigned = assigned + [(start, end, raw, dist)]
+            label = self.additional_requirements(idx, raw, temp_assigned)
+            #label = raw # bypass the additional requirements for now (since strikes aren't bookended in the validation dataset)
             assigned.append((start, end, label, dist))
+
+            if self.debug_strikes and label == 't':
+                block_df = df.iloc[start:end].copy()
+                block = block_df[['accX', 'accY', 'accZ']].values
+                var = np.var(block, axis=1)
+                center_idx = np.argmax(var)
+
+                sr = self.sampling_rate
+                half_strike = sr // 2
+                full_neigh = int(2.5 * sr)
+
+                center_global = start + center_idx
+                strike_start = max(center_global - half_strike, 0)
+                strike_end = min(center_global + half_strike + 1, len(df))
+                neigh_start = max(center_global - full_neigh, 0)
+                neigh_end = min(center_global + full_neigh + 1, len(df))
+
+                debug_df = df[['accX', 'accY', 'accZ']].iloc[neigh_start:neigh_end].copy()
+                debug_df = debug_df.reset_index(drop=True)
+
+                plotter = Plotter.__new__(Plotter)
+                plotter.df = debug_df
+                plotter.prefix = f"strike_debug_{idx}"
+                plotter.output_dir = "./debug_strikes"
+                plotter.plot_strike_debug(
+                    debug_df,
+                    strike_start - neigh_start,
+                    strike_end - neigh_start,
+                    center_idx=center_global - neigh_start
+                )
             df.loc[start:end-1, 'predictedBehavior'] = label
 
         return df, assigned

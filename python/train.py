@@ -58,8 +58,21 @@ class Trainer:
         for start, end in chunks:
             if end <= start:
                 continue
-            block = df_subset.iloc[start:end][['accX','accY','accZ']].values
-            block_for_cov = block
+            block_df = df_subset.iloc[start:end]
+            block = block_df[['accX','accY','accZ']].values
+
+            # Special handling for strikes
+            is_strike = block_df['behavior'].iloc[0] == 't'
+            if is_strike and len(block) >= 25:
+                # Compute per-sample variance
+                per_sample_var = np.var(block, axis=1)
+                center_idx = np.argmax(per_sample_var)
+                half_window = 12  # 0.5s at 25Hz
+                w_start = max(center_idx - half_window, 0)
+                w_end = min(center_idx + half_window + 1, len(block))
+                block_for_cov = block[w_start:w_end]
+            else:
+                block_for_cov = block
 
             mean_vec = np.mean(block_for_cov, axis=0)
             if block_for_cov.shape[0] > 1:

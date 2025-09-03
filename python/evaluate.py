@@ -47,7 +47,8 @@ class Evaluator:
         debug_top_percent: float = 0.1,
         debug_bottom_percent: float = 0.1,
         supervised: bool = False,
-        borderline_threshold: float = 0.1
+        borderline_threshold: float = 0.1,
+        debug_strikes: bool = False
     ):
 
         self.model_file = model_file
@@ -61,6 +62,9 @@ class Evaluator:
         self.debug_behaviors = debug_behaviors
         self.debug_top_percent = debug_top_percent
         self.debug_bottom_percent = debug_bottom_percent
+        self.supervised = supervised
+        self.borderline_threshold = borderline_threshold
+        self.debug_strikes = debug_strikes
 
         self.logger = logging.getLogger(self.__class__.__name__)
         if self.verbose:
@@ -86,7 +90,7 @@ class Evaluator:
             trainer = Trainer(
                 training_file=self.training_input,
                 chunksize=self.chunksize,
-                verbose=self.args.verbose
+                verbose=self.verbose
             )
             # Trainer.save_statistics writes to ./classifier/training_stats.json by default
             # TODO: as more models are trained these should have unique names
@@ -95,7 +99,12 @@ class Evaluator:
         with open(self.model_file, 'r') as f:
             self.stats = json.load(f)
         # Map label -> behavior name
-        self.behavior_map = {lbl: info['behavior'] for lbl,info in self.stats.items()}
+        #self.behavior_map = {lbl: info['behavior'] for lbl,info in self.stats.items()}
+        self.behavior_map = {
+            lbl: info['behavior']
+            for lbl, info in self.stats.items()
+            if isinstance(info, dict) and 'behavior' in info
+        }
         self.logger.info(f"Loaded model with behaviors: {list(self.stats.keys())}")
         # instantiate classifier logic
         self.classifier = Classifier(
@@ -103,7 +112,8 @@ class Evaluator:
             self.chunksize,
             model_file=self.model_file,
             supervised=self.supervised,
-            borderline_threshold=self.borderline_threshold
+            borderline_threshold=self.borderline_threshold,
+            debug_strikes=self.debug_strikes
         )
 
     def evaluate(self):
@@ -173,7 +183,7 @@ class Evaluator:
             ax.set_title(title)
         fig.colorbar(LineCollection(all_xy, cmap='viridis'), ax=axs[0], label='Frame')
         plt.tight_layout()
-        out2d = os.path.join(self.args.eval_plots_dir, f'{label}_{which}_2d_debug.pdf')
+        out2d = os.path.join(self.eval_plots_dir, f'{label}_{which}_2d_debug.pdf')
         fig.savefig(out2d); plt.close(fig)
         self.logger.info(f"Saved debug 2D plot: {out2d}")
 
@@ -187,7 +197,7 @@ class Evaluator:
         ax3.set_ylim(self.df['accY'].min(), self.df['accY'].max())
         ax3.set_zlim(self.df['accZ'].min(), self.df['accZ'].max())
         fig.colorbar(lc3, ax=ax3, label='Frame')
-        out3d = os.path.join(self.args.eval_plots_dir, f'{label}_{which}_3d_debug.pdf')
+        out3d = os.path.join(self.eval_plots_dir, f'{label}_{which}_3d_debug.pdf')
         fig.savefig(out3d); plt.close(fig)
         self.logger.info(f"Saved debug 3D plot: {out3d}")
 
@@ -196,29 +206,29 @@ class Evaluator:
         self.evaluate()
 
         # Normal plots
-        if not self.args.skip_normal_plots:
+        if not self.skip_normal_plots:
             # Use Plotter on new data; Plotter expects a behavior column
             eval_stats = {lbl: {'behavior': name} for lbl,name in self.behavior_map.items()}
-            plotter = Plotter(self.args.output_csv, eval_stats, self.chunksize,
-                              output_dir=self.args.eval_plots_dir)
+            plotter = Plotter(self.output_csv, eval_stats, self.chunksize,
+                              output_dir=self.eval_plots_dir)
             plotter.plot_overall()
 
         # Debug plots
-        if self.args.debug_behaviors:
+        if self.debug_behaviors:
             # Group assigned distances by behavior
             by_beh = {}
             for s,e,l,d in self.assigned:
                 by_beh.setdefault(l, []).append((s,e,d))
-            for beh in self.args.debug_behaviors:
+            for beh in self.debug_behaviors:
                 lst = by_beh.get(beh, [])
                 if not lst:
                     self.logger.warning(f"No chunks for behavior '{beh}' to debug.")
                     continue
                 lst_sorted = sorted(lst, key=lambda x: x[2])
-                top_n = max(1, int(len(lst_sorted)*self.args.debug_top_percent))
-                bottom_n = max(1, int(len(lst_sorted)*self.args.debug_bottom_percent))
-                self._plot_debug_chunks(lst_sorted[:top_n], beh, 'top', self.args.debug_top_percent)
-                self._plot_debug_chunks(lst_sorted[-bottom_n:], beh, 'bottom', self.args.debug_bottom_percent)
+                top_n = max(1, int(len(lst_sorted)*self.debug_top_percent))
+                bottom_n = max(1, int(len(lst_sorted)*self.debug_bottom_percent))
+                self._plot_debug_chunks(lst_sorted[:top_n], beh, 'top', self.debug_top_percent)
+                self._plot_debug_chunks(lst_sorted[-bottom_n:], beh, 'bottom', self.debug_bottom_percent)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Evaluate new data with a pre-trained behavior classifier')
@@ -245,6 +255,8 @@ if __name__ == '__main__':
                         help='prompt on borderline chunks during classification')
     parser.add_argument('--borderline-threshold', type=float, default=0.1,
                         help='relative margin under which a chunk is considered borderline')
+    parser.add_argument('--debug-strikes', action='store_true',
+                        help='Generate debug plots for all chunks classified as strikes')
     args = parser.parse_args()
 
     evaluator = Evaluator(
@@ -261,6 +273,7 @@ if __name__ == '__main__':
         debug_bottom_percent = args.debug_bottom_percent,
         supervised         = args.supervised,
         borderline_threshold = args.borderline_threshold,
+        debug_strikes      = args.debug_strikes,
     )
     evaluator.run()
 

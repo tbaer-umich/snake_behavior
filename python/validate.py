@@ -35,6 +35,8 @@ def main():
                         help='prompt on borderline chunks during validation')
     parser.add_argument('--borderline-threshold', type=float, default=0.1,
                         help='relative margin under which a chunk is considered borderline')
+    parser.add_argument('--debug-strikes', action='store_true',
+                        help='Generate debug plots for all chunks classified as strikes')
     args = parser.parse_args()
 
     # Set up logging to match evaluate.py format
@@ -73,7 +75,8 @@ def main():
         args.chunksize,
         model_file=args.model_file,
         supervised=args.supervised,
-        borderline_threshold=args.borderline_threshold
+        borderline_threshold=args.borderline_threshold,
+        debug_strikes=args.debug_strikes
     )
     df_pred, _ = clf.classify(df_unlabeled)
 
