@@ -13,10 +13,7 @@ We've created a setup script that handles everything for you:
 git clone https://github.com/tbaer-umich/snake_behavior.git
 cd snake_behavior
 
-# 2. Make the setup script executable
-chmod +x setup.sh
-
-# 3. Run the setup script
+# 2. Run the setup script
 ./setup.sh
 ```
 
