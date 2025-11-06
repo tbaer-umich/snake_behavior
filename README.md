@@ -4,46 +4,101 @@ This project contains a simple python-based classifier and plotting scripts to c
 
 ---
 
-## Python Prerequisites
-As a first step, you should have **Python 3.7+** installed on your machine. If you are using a Mac, open the Terminal application and type.
+## Quick Setup (Mac/Linux)
+
+### Automatic Setup (Recommended)
+We've created a setup script that handles everything for you:
 ```bash
-python --version
+# 1. Clone the repository
+git clone https://github.com/tbaer-umich/snake_behavior.git
+cd snake_behavior
+
+# 2. Make the setup script executable
+chmod +x setup.sh
+
+# 3. Run the setup script
+./setup.sh
 ```
-This should give you the currently installed python version.
-You will also need some external packages to run this code, to install these dependencies running the following command in your terminal:
+
+The setup script will:
+- Check that Python 3.7+ is installed
+- Create a virtual environment
+- Install all required packages
+- Check for GUI support (Tkinter)
+
+### Manual Setup (If Automatic Fails)
+If the automatic setup doesn't work, you can set up manually:
 ```bash
-pip install numpy pandas matplotlib scipy
-```
-If you encounter errors installing these packages (you may see something like this), we will need to install a virtual enviroment.
-```ansi
-error: externally-managed-environment
-× This environment is externally managed
-└─> To install Python packages system-wide, try brew install <package>
-```
-Installing a virtual enviroment is thankfully straight forward, just type (or copy) the following into the terminal prompt:
-```bash
+# Create virtual environment
 python3 -m venv venv
 source venv/bin/activate
-```
-Now you can rerun the `pip install` command to download all the external packages. Now we are ready to clone (download) this repo and start running code.
 
-**Remember:** Every time you open up the terminal again to run this code, you will need to run the following command to re-launch the virtual enviroment.
+# Install packages
+pip install -r requirements.txt
+```
+
+**Note for Mac Users:** If you get an error about Tkinter when running the labeler, you may need to:
+- Either: Install Python from [python.org](https://www.python.org/downloads/) (includes Tkinter)
+- Or: Install via Homebrew: `brew install python-tk`
+
+---
+
+## Getting Started
+
+After setup is complete, activate your environment and start labeling:
 ```bash
+# Always activate the environment first (every time you open terminal)
 source venv/bin/activate
+
+# Start the labeling tool
+python python/labeler.py
 ```
 
 ---
 
-## Installation
-Installation is simple. To install this repository on to your local machine you will want to navigate (using the `cd` command) to a convienient location where you wish to download it. 
+## Main Tools
 
-Here is an example of terminal caommands to navigate to your Desktop, run the `git clone` command which "checks out" a version of the github repository locally, and then enter the direcotry (named `snake_behavior`) using the `cd` command.
+### 1. Labeler (`labeler.py`) - Start Here!
+**What it does:** Interactive GUI for labeling snake accelerometer data
+
+**How to use:**
 ```bash
-cd Desktop/
-git clone https://github.com/tbaer-umich/snake_behavior.git
-cd snake_behavior
+python python/labeler.py
+```
+- Click "Load Data" to open a CSV file with accelerometer data
+- View 5-second chunks and classify as: Still (1), Locomotion (2), Strike (3), or Uncertain (4)
+- Use keyboard shortcuts: A (previous), D (next), 1-4 (classify)
+- Auto-saves every 25 labels to `*_labeled.csv`
+
+**Pro tip:** Load a trained classifier to get AI predictions - just press D to accept them!
+
+### 2. Trainer (`train.py`)
+**What it does:** Trains a classifier from labeled data
+
+**How to use:**
+```bash
+python python/train.py -i training_data/your_labeled_data.csv -c 125
+```
+Creates `classifier/training_stats.json` containing the trained model
+
+### 3. Evaluator (`evaluate.py`) 
+**What it does:** Classifies new unlabeled data using a trained model
+
+**How to use:**
+```bash
+python python/evaluate.py -i data/new_data.csv -m classifier/training_stats.json -c 125
+```
+Creates `classified.csv` with behavior predictions
+
+### 4. Validator (`validate.py`)
+**What it does:** Tests classifier accuracy on labeled data
+
+**How to use:**
+```bash
+python python/validate.py -m classifier/training_stats.json -l training_data/test_data.csv -c 125
 ```
 
+---
 
 ## File Structure
 Once downloaded, youn should find the following folder & files in the repository:
@@ -55,13 +110,14 @@ You can view these either by navigating to the folder in Finder or more convieni
 │   ├── classifier.py     # Shared classification logic (used by evaluate & validate)
 │   ├── validate.py       # Validator class & script for labeled data
 │   ├── plotter.py        # Plotter class & CLI
+│   ├── labeler.py        # GUI tool for manually labeling accelerometer data
 │   └── utils.py          # Helper: chunk-splitting function
 ├── classifier/           # Generated JSON models (e.g. training_stats_*.json)
 ├── training_data/        # Datasets used for training
 ├── data/                 # Data we want to evaluate
 ├── categorized_data/     # Evaluated data (CSV outputs)
 ├── plots/                # Where .pdf outputs are stored by default
-├─── .gitignore            # Excluded files
+├─── .gitignore           # Excluded files
 └── README.md             # This file
 ```
 
@@ -75,6 +131,72 @@ So how do we use this classifier? There are four main files which each serve a d
 3. **Validate** classifier performance against held-out labeled data using `validate.py`.
 4. **Visualize** results during training or evaluation via `plotter.py` (or the built-in plot calls in the scripts).
 Now let's go into some more detail on how to run each of these files.
+
+---
+
+## Labeler (`labeler.py`)
+
+**Purpose:**
+- Provides a graphical user interface (GUI) for manually labeling accelerometer data from timber rattlesnakes
+- Displays 5-second chunks (125 samples at 25Hz) of accelerometer data as time-series plots
+- Allows classification into four categories: Still, Locomotion, Strike, or Uncertain
+- Supports resuming partially-labeled datasets to continue where you left off
+- Can load pre-trained classifier predictions to speed up the labeling process through semi-automated review
+
+**How to Run:**
+```bash
+python python/labeler.py
+```
+This will open a GUI window. No command-line arguments are needed - all operations are done through the interface.
+
+**Basic Usage:**
+1. **Starting Fresh:**
+   - Click "Load Data" to select an unlabeled CSV file with columns: `Date, Time, accX, accY, accZ`
+   - The tool will display the first 5-second chunk of data as three time-series plots (one for each axis)
+   - Click one of the four behavior buttons or press keyboard shortcuts (1-4) to classify the current chunk
+   - Use navigation buttons or keyboard shortcuts to move between chunks:
+     - Press 'A' or '← Previous' button to go back
+     - Press 'D', Space, or 'Next →' button to advance
+   - Classifications auto-save every 25 labels to a file named `<original_filename>_labeled.csv`
+
+2. **Resuming Previous Work:**
+   - Click "Load Progress" to select a `*_labeled.csv` file you were previously working on
+   - The tool automatically loads your previous labels and jumps to the first unlabeled chunk
+   - Continue labeling from where you left off
+
+3. **Using Classifier Predictions (Semi-Automated Mode):**
+   - First load your data using either "Load Data" or "Load Progress"
+   - Click "Get Classifier Predictions" and select a trained classifier JSON file (usually in `./classifier/`)
+   - The classifier will run on the entire dataset (this may take a moment)
+   - As you navigate chunks, classifier predictions appear in orange with "(classifier prediction)" suffix
+   - To accept a prediction: Simply press 'D' to move to the next chunk - this auto-confirms the prediction
+   - To override a prediction: Click any classification button - it will turn green and show "(revised)" if different from the prediction
+   - All confirmed predictions and manual labels are saved when you save the file
+
+**Keyboard Shortcuts:**
+- `1` - Classify as Still
+- `2` - Classify as Locomotion
+- `3` - Classify as Strike
+- `4` - Classify as Uncertain
+- `A` - Previous chunk
+- `D` or `Space` - Next chunk (auto-confirms classifier predictions if present)
+
+**Output Format:**
+The tool saves a CSV file with the original data plus a `behavior` column containing single-letter codes:
+- `s` - Still
+- `l` - Locomotion
+- `t` - Strike (Note: lowercase 't', not uppercase)
+- `u` - Uncertain
+
+Each 5-second chunk gets the same label applied to all its samples (125 rows in the output).
+
+**Tips for Efficient Labeling:**
+- Use keyboard shortcuts instead of clicking buttons for faster labeling
+- Enable classifier predictions to pre-label the dataset, then quickly review with 'D' key
+- The tool shows consistent y-axis scaling (mean ± 0.25) to avoid amplifying noise in still segments
+- Adjust chunk size (50-375 samples) using the spinbox if needed for your specific use case
+- The save status indicator shows when you have unsaved changes
+- The tool prompts to save if you try to close with unsaved work
 
 ---
 
