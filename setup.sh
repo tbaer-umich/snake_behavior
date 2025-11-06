@@ -6,7 +6,7 @@
 echo "================================"
 echo "Snake Behavior Classification"
 echo "Environment Setup"
-echo " by Thomas M. Baer
+echo " by Thomas M. Baer"
 echo "================================"
 echo ""
 
@@ -30,9 +30,9 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
         echo ""
         echo "To install Tkinter, you have two options:"
         echo "1. If you have Homebrew, run: brew install python-tk"
-        echo "2. Reinstall Python from python.org (includes Tkinter by default)"
+        echo "2. Reinstall Python from python.org \(includes Tkinter by default\)"
         echo ""
-        read -p "Do you want to continue without Tkinter? (y/n): " -n 1 -r
+        read -p "Do you want to continue without Tkinter? \(y/n\): " -n 1 -r
         echo
         if [[ ! $REPLY =~ ^[Yy]$ ]]; then
             exit 1
