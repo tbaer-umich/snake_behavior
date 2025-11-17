@@ -106,6 +106,16 @@ class SnakeLabelingTool:
 
         ttk.Button(zoom_frame, text="Show Context", command=self.show_context, width=12).pack(side=tk.LEFT, padx=2)
 
+        # Go to chunk controls
+        goto_frame = ttk.Frame(nav_frame)
+        goto_frame.pack(side=tk.LEFT, padx=(20, 5))
+
+        ttk.Label(goto_frame, text="Go to chunk:").pack(side=tk.LEFT, padx=(0, 5))
+        self.goto_var = tk.StringVar()
+        self.goto_entry = ttk.Entry(goto_frame, textvariable=self.goto_var, width=6)
+        self.goto_entry.pack(side=tk.LEFT, padx=2)
+        ttk.Button(goto_frame, text="Go", command=self.go_to_chunk, width=5).pack(side=tk.LEFT, padx=2)
+
         # Button section at the bottom - PACK THIS FIRST
         button_container = ttk.Frame(self.root)
         button_container.pack(side=tk.BOTTOM, fill=tk.X, padx=5, pady=5)
@@ -239,6 +249,26 @@ class SnakeLabelingTool:
         canvas = FigureCanvasTkAgg(fig, context_window)
         canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
         canvas.draw()
+
+    def go_to_chunk(self):
+        """Navigate to a specific chunk number"""
+        if self.data is None:
+            return
+
+        try:
+            chunk_num = int(self.goto_var.get())
+            # Convert to 0-indexed
+            chunk_idx = chunk_num - 1
+
+            if 0 <= chunk_idx < self.get_total_chunks():
+                self.current_idx = chunk_idx
+                self.update_display()
+            else:
+                messagebox.showwarning("Invalid Chunk", f"Please enter a chunk number between 1 and {self.get_total_chunks()}")
+        except ValueError:
+            messagebox.showwarning("Invalid Input", "Please enter a valid chunk number")
+
+
 
     def load_classifier_predictions(self):
         """Load classifier and run predictions on entire dataset"""

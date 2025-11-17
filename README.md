@@ -2,6 +2,8 @@
 
 This project contains a simple python-based classifier and plotting scripts to categorize the behavior of timber rattlesnakes into either still, locomotion, or striking.
 
+For absolute beginners to python --> start with the [beginner's guide](#appendix-beginners-guide) at the bottom of this file.
+
 ---
 
 ## Quick Setup (Mac/Linux)
@@ -37,6 +39,20 @@ pip install -r requirements.txt
 **Note for Mac Users:** If you get an error about Tkinter when running the labeler, you may need to:
 - Either: Install Python from [python.org](https://www.python.org/downloads/) (includes Tkinter)
 - Or: Install via Homebrew: `brew install python-tk`
+
+---
+
+## Updating the Code
+
+To get the latest updates and improvements:
+```bash
+# Navigate to the project folder
+cd snake_behavior
+
+# Get and apply updates from GitHub
+git fetch origin
+git pull
+```
 
 ---
 
@@ -177,6 +193,15 @@ This will open a GUI window. No command-line arguments are needed - all operatio
 - `4` - Classify as Uncertain
 - `A` - Previous chunk
 - `D` or `Space` - Next chunk (auto-confirms classifier predictions if present)
+- `+` - Zoom out (increase y-axis range)
+- `-` - Zoom in (decrease y-axis range)
+
+**Additional Features:**
+- **Zoom In/Out buttons:** Adjust the vertical scale of plots to see more or less detail. The zoom level persists as you navigate through chunks.
+- **Show Context button:** Opens a popup window showing 5 chunks before and after the current chunk, with all three axes plotted together in different colors.
+- **Go to chunk:** Type a chunk number in the text box and click "Go" to jump directly to that chunk without cycling through all chunks.
+- **Show Strikes Only button:** (Available after loading classifier predictions) Toggle to navigate only through chunks predicted as strikes for quick review.
+
 
 **Output Format:**
 The tool saves a CSV file with the original data plus a `behavior` column containing single-letter codes:
@@ -190,10 +215,17 @@ Each 5-second chunk gets the same label applied to all its samples (125 rows in 
 **Tips for Efficient Labeling:**
 - Use keyboard shortcuts instead of clicking buttons for faster labeling
 - Enable classifier predictions to pre-label the dataset, then quickly review with 'D' key
-- The tool shows consistent y-axis scaling (mean ± 0.25) to avoid amplifying noise in still segments
+- Use the zoom buttons if plots are too zoomed in or out
+- Use "Show Context" to see surrounding chunks if you're uncertain about a classification
 - Adjust chunk size (50-375 samples) using the spinbox if needed for your specific use case
 - The save status indicator shows when you have unsaved changes
 - The tool prompts to save if you try to close with unsaved work
+
+**What if I make a mistake?**
+- Press `A` to go back to the previous chunk
+- Reclassify it with the correct number (1-4) - the new label overwrites the old one
+- If you've already moved forward many chunks, use the "Go to chunk" feature to jump back
+- You can also click "Load Progress" to reload your `_labeled.csv` file and continue from any point
 
 ---
 
@@ -321,4 +353,92 @@ You generally don’t need to call it directly—it's used by `Trainer` and `Plo
 - Adjust **chunk size** (`-c`) depending on the chunk size expected in your training data
 - Tweak **debug** percentages to get a closer look at the most/least confident predictions
 - Extend `Evaluator` with post-processing rules (e.g. strike book-ending) as needed.
+
+---
+
+## Appendix: Beginner's Guide
+
+### Never Used Python or Terminal Before?
+
+Don't worry! This guide will walk you through everything step-by-step.
+
+### What is the Terminal?
+
+The **Terminal** (also called Command Line or Command Prompt) is a text-based way to interact with your computer. Instead of clicking on folders and files, you type commands.
+
+**How to open Terminal:**
+- **Mac:** Press `Cmd + Space`, type "Terminal", and press Enter
+- **Linux:** Press `Ctrl + Alt + T`
+- **Windows:** This guide is for Mac/Linux, but Windows users can use Git Bash or WSL
+
+### Basic Terminal Commands
+
+Here are the essential commands you'll need:
+
+```bash
+pwd                    # Shows your current location (Print Working Directory)
+ls                     # Lists files and folders in current location
+cd folder_name         # Changes directory (moves into a folder)
+cd ..                  # Goes up one folder level
+cd ~                   # Goes to your home directory
+```
+
+**Example:**
+```bash
+pwd                              # Shows: /Users/yourname
+cd Downloads                     # Move into Downloads folder
+pwd                              # Shows: /Users/yourname/Downloads
+ls                               # Shows all files in Downloads
+cd snake_behavior                # Move into the project folder
+```
+
+### Your First Time: Complete Walkthrough
+
+**Step 1: Download the project folder**
+```bash
+cd ~/Desktop/                    # Change this to wherever you want to save the project
+git clone https://github.com/tbaer-umich/snake_behavior.git
+cd snake_behavior               
+pwd                              # Verify you're in the right place
+```
+
+**Step 2: Run setup (ONE TIME ONLY)**
+```bash
+./setup.sh
+```
+This installs everything you need. You only do this once.
+
+**Step 3: Activate the environment (EVERY TIME)**
+```bash
+source venv/bin/activate
+```
+You'll see `(venv)` appear at the start of your terminal line. This means it worked!
+
+**Step 4: Start the labeler**
+```bash
+python python/labeler.py
+```
+A window will open!
+
+**Step 5: Use the labeler**
+1. Click "Load Data" and select your CSV file
+2. Look at the plots showing accelerometer data
+3. Press `1` (Still), `2` (Locomotion), `3` (Strike), or `4` (Uncertain)
+4. Press `D` to move to the next chunk
+5. The tool auto-saves every 25 labels
+6. When done, close the window - your work is saved as `<filename>_labeled.csv`
+
+**Common Issues:**
+- **"command not found"**: You might be in the wrong folder. Use `pwd` to check, and `cd` to navigate
+- **"No such file or directory"**: The path you typed doesn't exist. Use `ls` to see what's available
+- **Forgot to activate environment**: You'll see an import error. Run `source venv/bin/activate` first
+- **Permission denied on setup.sh**: Run `chmod +x setup.sh` first, then try again
+
+**Need to start over?**
+Every time you open a new Terminal window, you need to:
+1. Navigate to the project: `cd ~/Desktop/snake_behavior`
+2. Activate environment: `source venv/bin/activate`
+3. Run the tool: `python python/labeler.py`
+
+That's it! With these basics, you're ready to start labeling snake behavior data.
 
