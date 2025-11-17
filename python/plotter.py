@@ -12,9 +12,12 @@ Includes functionality for independent plotting of evaluated data.
 import os
 import argparse
 import numpy as np
+import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.collections import LineCollection
 from mpl_toolkits.mplot3d.art3d import Line3DCollection
+matplotlib.use('Agg')
+
 from utils import break_into_chunks
 
 class Plotter:

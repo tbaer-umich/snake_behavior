@@ -16,7 +16,7 @@ import numpy as np
 import pandas as pd
 from scipy.linalg import sqrtm, logm, norm
 from plotter import Plotter
-from utils import break_into_chunks
+from utils import break_into_chunks, align_covariance_to_principal_axis
 
 
 class Classifier:
@@ -45,7 +45,7 @@ class Classifier:
         self.threshold = borderline_threshold
         self.debug_strikes = debug_strikes
         # manual default distance scaling; adjust here as needed
-        self.scale = {'s': 0.75, 't': 0.5, 'l': 1.0}
+        self.scale = {'s': 0.75, 't': 0.5, 'l': 1.00}
         self.sampling_rate = 25  # samples per second
         # for two-phase strike bookending
         self._pending_strike_idx = None
@@ -109,6 +109,7 @@ class Classifier:
         center_i = variances.idxmax()
         # define windows in samples
         radius = int(2.5 * self.sampling_rate)  # 2.5s neighborhood
+        #radius = int(10.0 * self.sampling_rate)  # 10.s neighborhood
         strike_win = int(1.0 * self.sampling_rate)  # 1s strike
         half_strike = strike_win // 2
         # compute slice bounds, clamp to data range
@@ -134,7 +135,7 @@ class Classifier:
         # require both pre- and post-strike regions to be still
         if not region_is_still(before_start, before_end):
             return False
-        if not region_is_still(after_start, after_end):
+        if not region_is_still(after_start, after_end): #NOTE: temporarily remove the after-strike stillness requirement
             return False
         return True
 
@@ -211,6 +212,10 @@ class Classifier:
                             cov = np.eye(3)
                     else:
                         cov = np.cov(block, rowvar=False)
+
+                    # Align covariance matrix to principal axis (same as training)
+                    #cov = align_covariance_to_principal_axis(cov) #NOTE: WIP not yet reliable enough yet for use
+
                     dists[lbl] = self.scale[lbl] * self.airm_distance(
                         cov, np.array(info['average_covariance'])
                     )

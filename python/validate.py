@@ -83,6 +83,15 @@ def main():
     # Compare predictions to truth
     truth = df_labeled['behavior'].values
     preds = df_pred['predictedBehavior'].values
+
+    # Filter out rows where truth is NaN/null
+    valid_mask = pd.notna(truth)
+    if not valid_mask.all():
+        skipped = len(truth) - valid_mask.sum()
+        logger.warning(f"Skipping {skipped} rows with missing labels")
+    truth = truth[valid_mask]
+    preds = preds[valid_mask]
+
     if len(truth) != len(preds):
         logger.error("Prediction length does not match true labels.")
         sys.exit(1)

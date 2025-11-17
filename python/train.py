@@ -18,18 +18,23 @@ import os
 import numpy as np
 import pandas as pd
 
-from utils import break_into_chunks
+from utils import break_into_chunks, align_covariance_to_principal_axis
 from plotter import Plotter
 
 class Trainer:
     def __init__(self,
                  training_file: str,
                  chunksize: int = 20,
-                 verbose: bool = False):
+                 verbose: bool = False,
+                 retrain: bool = False,
+                 model_file: str = None):
         self.verbose = verbose
         self.training_file = training_file
         self.chunksize = chunksize
         self.verbose = verbose
+        self.retrain = retrain
+        self.model_file = model_file
+
         if self.verbose:
             logging.basicConfig(level=logging.DEBUG,
                                 format='%(asctime)s | %(levelname)-8s | %(name)s | %(message)s',
@@ -41,6 +46,18 @@ class Trainer:
         # Suppress verbose matlplotlib debug logs
         logging.getLogger('matplotlib').setLevel(logging.WARNING)
         self.logger = logging.getLogger(self.__class__.__name__)
+
+        # If retraining, load existing model and validate chunksize
+        self.existing_stats = None
+        if self.retrain:
+            if not self.model_file:
+                raise ValueError("--retrain requires --model-file to be specified")
+            with open(self.model_file, 'r') as f:
+                self.existing_stats = json.load(f)
+            # Extract chunksize from existing model if available
+            if 'chunksize' in self.existing_stats and self.existing_stats['chunksize'] != self.chunksize:
+                self.logger.warning(f"Using chunksize {self.existing_stats['chunksize']} from existing model (ignoring command line value {self.chunksize})")
+                self.chunksize = self.existing_stats['chunksize']
 
 
     @staticmethod
@@ -79,10 +96,16 @@ class Trainer:
                 cov_mat = np.cov(block_for_cov, rowvar=False)
             else:
                 cov_mat = np.zeros((3,3))
+            # Align covariance matrix to principal axis
+            # Note: Mean vectors are kept in original reference frame
+            # Only covariance matrices are rotated to align principal components
+            #cov_mat = cov_mat = align_covariance_to_principal_axis(cov_mat) # NOTE: WIP, not yet reliable enough for use
             means.append(mean_vec.tolist())
             covs.append(cov_mat.tolist())
 
         return means, covs, chunks
+
+
 
     def compute_training_statistics(self):
         df = pd.read_csv(self.training_file)
@@ -101,18 +124,40 @@ class Trainer:
                 continue
 
             means, covs, ranges = self.compute_chunk_statistics(df_sub, self.chunksize, self.logger)
-            if means:
+            if means: #this is a really janky if-guard TODO: think about removing this
                 avg_mean = np.mean(means, axis=0).tolist()
                 avg_cov = np.mean(covs, axis=0).tolist()
+                num_chunks = len(means)
             else:
                 avg_mean = [None, None, None]
                 avg_cov = [[None]*3 for _ in range(3)]
+                num_chunks = 0
+
+            # If retraining, combine with existing statistics
+            if self.retrain and self.existing_stats and label in self.existing_stats:
+                old_stats = self.existing_stats[label]
+                old_mean = np.array(old_stats['average_mean'])
+                old_cov = np.array(old_stats['average_covariance'])
+                old_num_chunks = old_stats.get('num_chunks', 0)
+
+                if num_chunks > 0 and old_num_chunks > 0:
+                    # Weighted average based on number of chunks
+                    total_chunks = old_num_chunks + num_chunks
+                    avg_mean = ((old_mean * old_num_chunks + np.array(avg_mean) * num_chunks) / total_chunks).tolist()
+                    avg_cov = ((old_cov * old_num_chunks + np.array(avg_cov) * num_chunks) / total_chunks).tolist()
+                    num_chunks = total_chunks
+                    self.logger.info(f"Combined {old_num_chunks} existing chunks with {len(means)} new chunks for '{name}'")
+                elif old_num_chunks > 0:
+                    # No new chunks, keep old stats
+                    avg_mean = old_mean.tolist()
+                    avg_cov = old_cov.tolist()
+                    num_chunks = old_num_chunks
 
             stats[label] = {
                 'behavior': name,
                 'average_mean': avg_mean,
                 'average_covariance': avg_cov,
-                # what are the chunk means and covariances doing here? Why isn't the average enough to get the information?
+                'num_chunks': num_chunks,
             }
 
             # pretty-print stats
@@ -120,6 +165,11 @@ class Trainer:
             self.logger.info(f"  Mean: {np.array(avg_mean)}")
             cov_arr = np.array(avg_cov)
             self.logger.info(f"  Covariance:\n{cov_arr}")
+            self.logger.info(f"  Number of chunks: {num_chunks}")
+
+        # Add chunksize to stats for future retraining
+        stats['chunksize'] = self.chunksize
+
 
         return stats
 
@@ -131,13 +181,15 @@ class Trainer:
 
         out_dir = "./classifier/"
         os.makedirs(out_dir, exist_ok=True)
-        out_name = f"training_stats_{time_label}.json"
-        out_path = os.path.join(out_dir, out_name)
 
-        out_dir = "./classifier/"
-        os.makedirs(out_dir, exist_ok=True)
-        # include an underscore before the label, and .json at the end
-        out_name = f"training_stats_{time_label}.json"
+        # If retraining, append _updated to the model filename
+        if self.retrain:
+            model_base = os.path.basename(self.model_file)
+            model_name, _ = os.path.splitext(model_base)
+            out_name = f"{model_name}_updated.json"
+        else:
+            out_name = f"training_stats_{time_label}.json"
+
         out_path = os.path.join(out_dir, out_name)
 
         with open(out_path, 'w') as f:
@@ -151,8 +203,11 @@ class Trainer:
         stats_path = self.save_statistics(stats)
 
         # Optionally visualize results
-        plotter = Plotter(self.training_file, stats, self.chunksize)
-        plotter.plot_overall()
+        if not self.retrain:
+            plotter = Plotter(self.training_file, stats, self.chunksize)
+            plotter.plot_overall()
+        else:
+            self.logger.info("Skipping plots during retraining")
 
         return stats_path
 
@@ -161,6 +216,9 @@ if __name__ == '__main__':
     parser.add_argument('-i', '--input', required=True, metavar='FILE', help='path to the training CSV file')
     parser.add_argument('-c', '--chunksize', type=int, default=20, help='the size of each behavior "chunk"')
     parser.add_argument('-v', '--verbose', action='store_true', help='enable debug logging')
+    parser.add_argument('-r', '--retrain', action='store_true', help='retrain an existing model with additional data')
+    parser.add_argument('-m', '--model-file', metavar='FILE', help='path to existing model JSON (required for --retrain)')
+
     args = parser.parse_args()
 
     if not os.path.isfile(args.input):
@@ -169,7 +227,9 @@ if __name__ == '__main__':
     trainer = Trainer(
         training_file=args.input,
         chunksize=args.chunksize,
-        verbose=args.verbose
+        verbose=args.verbose,
+        retrain=args.retrain,
+        model_file=args.model_file
     )
     trainer.run()
 
