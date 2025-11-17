@@ -233,7 +233,7 @@ Each 5-second chunk gets the same label applied to all its samples (125 rows in 
 
 **Purpose:**
 - Load a **labeled** CSV with columns `[accX, accY, accZ, Behavior]`.
-- Split into fixed-size chunks (default 20 samples for now, but is variable).
+- This training data should be split into fixed-size chunks (default 125 datapoints per chunk for now, but is variable).
 - Compute each chunk’s mean & covariance, then average per behavior class. (This is what we use for classifying)
 - Save statistics as JSON and generate initial plots.
 
@@ -243,18 +243,18 @@ Each 5-second chunk gets the same label applied to all its samples (125 rows in 
 To run script, we must call the python command `python train.py` with some additional arguments which give the script its inputs and/or options. The arguments are:
 ```bash
 python train.py \
-  -i ./path/to/train_data.csv   # required: your labeled CSV training data
-  -c 20                         # optional: chunk size in samples (default 20)
-  -v                            # optional: verbose logging
+  -i ./training_data/<your_training_data>.csv   # required: your labeled CSV training data
+  -c 125                                        # optional: chunk size in samples (default 125)
+  -v                                            # optional: verbose logging
 ```
 
 **Example:**
 If you are on the terminal inside of the `snake_behavior` folder, you should be able to run the training via this command:
 ```bash
-python python/train.py -i ./training_data/labeled_data_0p8s.csv -c 20 -v
+python python/train.py -i ./training_data/labeled_data_5p0s.csv -c 125 -v
 ```
 After running, you’ll find:
-- `./classifier/training_stats.json` (the extracted information from the training)
+- `./classifier/training_stats_5p0s.json` (the extracted information from the training)
 - Plots in `./plots/` (one 2D & 3D PDF per behavior)
 
 ---
@@ -262,7 +262,7 @@ After running, you’ll find:
 ## Evaluator (`evaluate.py`)
 
 **Purpose:**
-- Load a **trained** classifier JSON (or auto-train if missing). #TODO: test if auto-training works (it does not as the args aren't passed to the `Trainer` class)
+- Load a **trained** classifier JSON 
 - Load new **unlabeled** CSV with columns `[Date, Time, accX, accY, accZ]`.
 - Split into chunks, compute covariance per chunk, measure AIRM distance to each behavior’s average covariance, assign best-match label.
 - Save a new CSV with a `Behavior` column and optionally generate plots & debug visuals.
@@ -275,7 +275,7 @@ python evaluate.py \
   -i data/new_data.csv              # required: new unlabeled data
   -m classifier/training_stats.json # optional: path to JSON (auto-trains if missing)
   --train-input train_behavior.csv  # optional: training CSV if retraining needed
-  -c 20                             # chunk size (samples)
+  -c 125                            # chunk size (samples)
   -o categorized/data/              # where to save labeled output (default is classified.csv)
   --eval-plots-dir eval_plots       # directory for evaluation plots
   --skip-normal-plots               # skip overall 2D/3D plots
@@ -290,9 +290,9 @@ python evaluate.py \
 **Example:**
 ```bash
 python python/evaluate.py -i data/Eletra_1_test.csv \
-                   -m classifier/training_stats.json \
-                   -c 20 \
-                   --eval-plots-dir plot/s \
+                   -m classifier/training_stats_5p0s.json \
+                   -c 125 \
+                   --eval-plots-dir plot/ \
                    -v
 ```
 After running, you’ll find:
@@ -312,7 +312,7 @@ After running, you’ll find:
 ```bash
 python plotter.py \
   -e categorized_data/Eletra_1_test_evaluated.csv  # CSV with `Behavior` column
-  -c 20                     # chunk size
+  -c 125                    # chunk size
   -o plots/                 # output directory (default `plots`)
   -v                        # verbose logging
 ```
@@ -330,9 +330,9 @@ Purpose:
 Usage:
 ```bash
 python validate.py \
-  -m classifier/training_stats.json \   # your model JSON
-  -l training_data/labeled_data_5p0s.csv \
-  -c 20 \                               # chunk size
+  -m classifier/training_stats_5p0s.json \   # your model JSON
+  -l data/Eletra_1_test_labeled_byMorgan.csv \
+  -c 125 \                              # chunk size
   –-supervised \                        # optional live prompting
   –-borderline-threshold 0.1            # optional sensitivity
 ```
