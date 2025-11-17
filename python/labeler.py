@@ -35,6 +35,10 @@ class SnakeLabelingTool:
         self.progress_file = None
         self.labeled_file_path = None
         self.unsaved_changes = 0
+        self.plot_range = 0.25  # Default y-axis range, adjustable with zoom buttons
+        self.strike_only_mode = False  # Track if we're in strike-only navigation mode
+        self.strike_indices = []  # List of chunk indices that are predicted as strikes
+
 
         # Classification options
         self.behaviors = ["Still", "Locomotion", "Strike", "Uncertain"]
@@ -69,6 +73,11 @@ class SnakeLabelingTool:
         ttk.Button(control_frame, text="Get Classifier Predictions", 
                   command=self.load_classifier_predictions).pack(side=tk.LEFT, padx=(20,5))
 
+        # Show strikes button (initially disabled)
+        self.show_strikes_btn = ttk.Button(control_frame, text="Show Strikes Only",
+                                          command=self.toggle_strike_mode, state='disabled')
+        self.show_strikes_btn.pack(side=tk.LEFT, padx=5)
+
 
         # Progress indicator
         self.progress_var = tk.StringVar(value="No data loaded")
@@ -84,6 +93,18 @@ class SnakeLabelingTool:
         class_label = ttk.Label(nav_frame, textvariable=self.current_class_var, 
                               font=('Arial', 12, 'bold'), foreground='darkgreen')
         class_label.pack(side=tk.LEFT, padx=(20, 5))
+
+        # Zoom controls
+        zoom_frame = ttk.Frame(nav_frame)
+        zoom_frame.pack(side=tk.LEFT, padx=(40, 5))
+
+        self.zoom_out_btn = ttk.Button(zoom_frame, text="Zoom Out (+)", command=self.zoom_out, width=12)
+        self.zoom_out_btn.pack(side=tk.LEFT, padx=2)
+
+        self.zoom_in_btn = ttk.Button(zoom_frame, text="Zoom In (−)", command=self.zoom_in, width=12)
+        self.zoom_in_btn.pack(side=tk.LEFT, padx=2)
+
+        ttk.Button(zoom_frame, text="Show Context", command=self.show_context, width=12).pack(side=tk.LEFT, padx=2)
 
         # Button section at the bottom - PACK THIS FIRST
         button_container = ttk.Frame(self.root)
@@ -132,7 +153,92 @@ class SnakeLabelingTool:
         self.root.bind('<Key-a>', lambda e: self.prev_chunk())
         self.root.bind('<Key-d>', lambda e: self.next_chunk())
         self.root.bind('<space>', lambda e: self.next_chunk())
+        self.root.bind('<plus>', lambda e: self.zoom_out())
+        self.root.bind('<minus>', lambda e: self.zoom_in())
         self.root.focus_set()
+
+    def zoom_out(self):
+        """Increase the y-axis range (zoom out)"""
+        self.plot_range += 0.25
+        self.update_zoom_buttons()
+        self.update_display()
+
+    def zoom_in(self):
+        """Decrease the y-axis range (zoom in)"""
+        if self.plot_range > 0.25:  # Don't go below minimum
+            self.plot_range -= 0.25
+            self.update_zoom_buttons()
+            self.update_display()
+
+    def update_zoom_buttons(self):
+        """Enable/disable zoom in button based on current range"""
+        if self.plot_range <= 0.25:
+            self.zoom_in_btn.state(['disabled'])
+        else:
+            self.zoom_in_btn.state(['!disabled'])
+
+    def show_context(self):
+        """Show context window with 5 chunks before and after current chunk"""
+        if self.data is None:
+            return
+
+        # Calculate chunk range (5 before, current, 5 after)
+        context_before = 5
+        context_after = 5
+        start_chunk = max(0, self.current_idx - context_before)
+        end_chunk = min(self.get_total_chunks() - 1, self.current_idx + context_after)
+
+        # Get data indices
+        start_idx = start_chunk * self.chunk_size
+        end_idx = (end_chunk + 1) * self.chunk_size
+        context_data = self.data.iloc[start_idx:end_idx]
+
+        # Create popup window
+        context_window = tk.Toplevel(self.root)
+        context_window.title(f"Context - Chunk {self.current_idx + 1}")
+        context_window.geometry("1000x600")
+
+        # Create matplotlib figure
+        fig, ax = plt.subplots(figsize=(12, 6))
+
+        # Create time axis centered at 0 for current chunk
+        total_samples = len(context_data)
+        current_chunk_start_in_context = (self.current_idx - start_chunk) * self.chunk_size
+        current_chunk_center = current_chunk_start_in_context + self.chunk_size / 2
+
+        # Time in seconds, centered at current chunk
+        time = (np.arange(total_samples) - current_chunk_center) / self.sampling_rate
+
+        # Plot all three axes with different colors
+        ax.plot(time, context_data['accX'].values, label='accX', color='red', alpha=0.7, linewidth=1)
+        ax.plot(time, context_data['accY'].values, label='accY', color='green', alpha=0.7, linewidth=1)
+        ax.plot(time, context_data['accZ'].values, label='accZ', color='blue', alpha=0.7, linewidth=1)
+
+        # Add vertical lines to mark chunk boundaries
+        for chunk_idx in range(start_chunk, end_chunk + 1):
+            chunk_start_in_context = (chunk_idx - start_chunk) * self.chunk_size
+            chunk_time = (chunk_start_in_context - current_chunk_center) / self.sampling_rate
+
+            if chunk_idx == self.current_idx:
+                # Highlight current chunk
+                ax.axvline(chunk_time, color='orange', linestyle='--', linewidth=2, alpha=0.8, label='Current chunk')
+            else:
+                ax.axvline(chunk_time, color='gray', linestyle=':', linewidth=1, alpha=0.5)
+
+        # Mark the end of the last chunk
+        last_chunk_end = ((end_chunk + 1 - start_chunk) * self.chunk_size - current_chunk_center) / self.sampling_rate
+        ax.axvline(last_chunk_end, color='gray', linestyle=':', linewidth=1, alpha=0.5)
+
+        ax.set_xlabel('Time (s) - Centered on Current Chunk')
+        ax.set_ylabel('Acceleration')
+        ax.set_title(f'Context View - Chunks {start_chunk + 1} to {end_chunk + 1}')
+        ax.legend(loc='upper right')
+        ax.grid(True, alpha=0.3)
+
+        # Embed in tkinter window
+        canvas = FigureCanvasTkAgg(fig, context_window)
+        canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+        canvas.draw()
 
     def load_classifier_predictions(self):
         """Load classifier and run predictions on entire dataset"""
@@ -172,8 +278,10 @@ class SnakeLabelingTool:
             loading_window = tk.Toplevel(self.root)
             loading_window.title("Loading")
             loading_window.geometry("300x100")
-            tk.Label(loading_window, text="Running classifier predictions...\nThis may take a moment.", 
-                    font=('Arial', 12)).pack(pady=20)
+            # Use light gray background with black text - visible in both modes
+            loading_window.configure(bg='#e0e0e0')
+            tk.Label(loading_window, text="Running classifier predictions...\nThis may take a moment.",
+                    font=('Arial', 12), bg='#e0e0e0', fg='black').pack(pady=20)
             loading_window.update()
 
             # Import and initialize classifier
@@ -191,10 +299,42 @@ class SnakeLabelingTool:
 
             loading_window.destroy()
             messagebox.showinfo("Success", f"Classifier predictions loaded for {len(self.classifier_predictions)} chunks")
+
+            # Enable the show strikes button
+            self.show_strikes_btn.state(['!disabled'])
+
             self.update_display()
 
         except Exception as e:
             messagebox.showerror("Error", f"Failed to load classifier predictions: {str(e)}")
+
+    def toggle_strike_mode(self):
+        """Toggle between normal navigation and strike-only navigation"""
+        if not self.classifier_loaded:
+            return
+
+        self.strike_only_mode = not self.strike_only_mode
+
+        if self.strike_only_mode:
+            # Build list of strike indices
+            self.strike_indices = [i for i, pred in enumerate(self.classifier_predictions) 
+                                  if pred == 'Strike']
+
+            if not self.strike_indices:
+                messagebox.showinfo("No Strikes", "No strikes found in classifier predictions")
+                self.strike_only_mode = False
+                return
+
+            # Jump to first strike
+            self.current_idx = self.strike_indices[0]
+            self.show_strikes_btn.configure(text="Show All Chunks")
+        else:
+            # Return to normal mode
+            self.show_strikes_btn.configure(text="Show Strikes Only")
+
+        self.update_display()
+
+
 
 
     def load_progress(self):
@@ -262,11 +402,26 @@ class SnakeLabelingTool:
 
     def prev_chunk(self):
         if self.current_idx > 0:
-            self.current_idx -= 1
+            if self.strike_only_mode:
+                # Find previous strike
+                current_pos = self.strike_indices.index(self.current_idx) if self.current_idx in self.strike_indices else -1
+                if current_pos > 0:
+                    self.current_idx = self.strike_indices[current_pos - 1]
+            else:
+                self.current_idx -= 1
             self.update_display()
 
     def next_chunk(self):
         """Move to next chunk, auto-confirming classifier predictions"""
+        if self.strike_only_mode:
+            # Find next strike
+            current_pos = self.strike_indices.index(self.current_idx) if self.current_idx in self.strike_indices else -1
+            if current_pos < len(self.strike_indices) - 1:
+                self.current_idx = self.strike_indices[current_pos + 1]
+                self.update_display()
+            return
+
+        # Normal navigation
         if self.current_idx < self.get_total_chunks() - 1:
             # Auto-confirm classifier prediction if moving forward without manual classification
             if (self.classifier_loaded and 
@@ -393,9 +548,9 @@ class SnakeLabelingTool:
             self.axes[i].set_ylabel(col)
             self.axes[i].grid(True, alpha=0.3)
 
-            # Set consistent y-axis limits: center on mean ± 0.25
+            # Set consistent y-axis limits: center on mean ± plot_range
             data_mean = chunk[col].mean()
-            self.axes[i].set_ylim(data_mean - 0.25, data_mean + 0.25)
+            self.axes[i].set_ylim(data_mean - self.plot_range, data_mean + self.plot_range)
 
         # Set xlabel only on bottom plot
         self.axes[-1].set_xlabel("Time (s)")
