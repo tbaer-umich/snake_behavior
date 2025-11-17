@@ -71,7 +71,7 @@ python python/labeler.py
 
 ## Main Tools
 
-### 1. Labeler (`labeler.py`) - Start Here!
+### 1. [Labeler](#labeler-labelerpy) (`labeler.py`) - Start Here!
 **What it does:** Interactive GUI for labeling snake accelerometer data
 
 **How to use:**
@@ -85,7 +85,7 @@ python python/labeler.py
 
 **Pro tip:** Load a trained classifier to get AI predictions - just press D to accept them!
 
-### 2. Trainer (`train.py`)
+### 2. [Trainer](#trainer-trainpy) (`train.py`)
 **What it does:** Trains a classifier from labeled data
 
 **How to use:**
@@ -94,7 +94,7 @@ python python/train.py -i training_data/your_labeled_data.csv -c 125
 ```
 Creates `classifier/training_stats.json` containing the trained model
 
-### 3. Evaluator (`evaluate.py`) 
+### 3. [Evaluator](#evaluator-evaluatepy) (`evaluate.py`)
 **What it does:** Classifies new unlabeled data using a trained model
 
 **How to use:**
@@ -103,7 +103,7 @@ python python/evaluate.py -i data/new_data.csv -m classifier/training_stats.json
 ```
 Creates `classified.csv` with behavior predictions
 
-### 4. Validator (`validate.py`)
+### 4. [Validator](#validator-validatepy) (`validate.py`)
 **What it does:** Tests classifier accuracy on labeled data
 
 **How to use:**
