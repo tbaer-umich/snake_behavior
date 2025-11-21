@@ -327,7 +327,7 @@ class SnakeLabelingTool:
 
             # Calculate total chunks and batch size
             total_chunks = self.get_total_chunks()
-            batch_size = 1000  # Process 1000 chunks at a time
+            batch_size = 100  # Process 1000 chunks at a time
 
             # Initialize predictions list
             self.classifier_predictions = []
