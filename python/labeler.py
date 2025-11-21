@@ -304,30 +304,64 @@ class SnakeLabelingTool:
                     if not response:
                         return
 
-            # Show loading message
-            loading_window = tk.Toplevel(self.root)
-            loading_window.title("Loading")
-            loading_window.geometry("300x100")
-            # Use light gray background with black text - visible in both modes
-            loading_window.configure(bg='#e0e0e0')
-            tk.Label(loading_window, text="Running classifier predictions...\nThis may take a moment.",
-                    font=('Arial', 12), bg='#e0e0e0', fg='black').pack(pady=20)
-            loading_window.update()
+            # Create progress window
+            progress_window = tk.Toplevel(self.root)
+            progress_window.title("Classifying...")
+            progress_window.geometry("400x120")
+            progress_window.configure(bg='#e0e0e0')
+
+            tk.Label(progress_window, text="Running classifier predictions...",
+                    font=('Arial', 12), bg='#e0e0e0', fg='black').pack(pady=(20, 10))
+
+            progress_bar = ttk.Progressbar(progress_window, length=300, mode='determinate')
+            progress_bar.pack(pady=10)
+
+            progress_text = tk.Label(progress_window, text="0 / 0 chunks",
+                                     font=('Arial', 10), bg='#e0e0e0', fg='black')
+            progress_text.pack(pady=5)
+            progress_window.update()
 
             # Import and initialize classifier
             from classifier import Classifier
             classifier = Classifier(stats, self.chunk_size)
 
-            # Run classification on entire dataset
-            classified_df, assigned = classifier.classify(self.data[['accX', 'accY', 'accZ']])
+            # Calculate total chunks and batch size
+            total_chunks = self.get_total_chunks()
+            batch_size = 1000  # Process 1000 chunks at a time
 
-            # Store predictions aligned with chunks
+            # Initialize predictions list
+            self.classifier_predictions = []
             behavior_map = {'s': 'Still', 'l': 'Locomotion', 't': 'Strike', 'u': 'Uncertain'}
-            self.classifier_predictions = [behavior_map.get(label, 'Uncertain') 
-                                          for _, _, label, _ in assigned]
+            # Process in batches
+            for batch_start in range(0, total_chunks, batch_size):
+                batch_end = min(batch_start + batch_size, total_chunks)
+
+                # Get data for this batch of chunks
+                start_idx = batch_start * self.chunk_size
+                end_idx = batch_end * self.chunk_size
+                batch_data = self.data[['accX', 'accY', 'accZ']].iloc[start_idx:end_idx].copy()
+
+                # Skip if batch is too small
+                if len(batch_data) < self.chunk_size:
+                    continue
+
+                # Run classification on batch
+                batch_data = batch_data.reset_index(drop=True)
+                _, assigned = classifier.classify(batch_data)
+
+                # Extract predictions from this batch
+                for _, _, label, _ in assigned:
+                    self.classifier_predictions.append(behavior_map.get(label, 'Uncertain'))
+
+                # Update progress
+                progress = (batch_end / total_chunks) * 100
+                progress_bar['value'] = progress
+                progress_text.config(text=f"{batch_end} / {total_chunks} chunks")
+                progress_window.update()
+
             self.classifier_loaded = True
 
-            loading_window.destroy()
+            progress_window.destroy()
             messagebox.showinfo("Success", f"Classifier predictions loaded for {len(self.classifier_predictions)} chunks")
 
             # Enable the show strikes button
