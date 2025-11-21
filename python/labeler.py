@@ -311,7 +311,7 @@ class SnakeLabelingTool:
             progress_window.configure(bg='#e0e0e0')
 
             tk.Label(progress_window, text="Running classifier predictions...",
-                    font=('Arial', 12), bg='#e0e0e0', fg='black').pack(pady=(20, 10))
+                    font=('Arial', 12)).pack(pady=(20, 10))
 
             progress_bar = ttk.Progressbar(progress_window, length=300, mode='determinate')
             progress_bar.pack(pady=10)
