@@ -78,6 +78,11 @@ class SnakeLabelingTool:
                                           command=self.toggle_strike_mode, state='disabled')
         self.show_strikes_btn.pack(side=tk.LEFT, padx=5)
 
+        # Confirm All button
+        self.confirm_all_btn = ttk.Button(control_frame, text="Confirm All Predictions",
+                                         command=self.confirm_all_predictions, state='disabled')
+        self.confirm_all_btn.pack(side=tk.LEFT, padx=5)
+
 
         # Progress indicator
         self.progress_var = tk.StringVar(value="No data loaded")
@@ -366,11 +371,40 @@ class SnakeLabelingTool:
 
             # Enable the show strikes button
             self.show_strikes_btn.state(['!disabled'])
+            self.confirm_all_btn.state(['!disabled'])
 
             self.update_display()
 
         except Exception as e:
             messagebox.showerror("Error", f"Failed to load classifier predictions: {str(e)}")
+
+    def confirm_all_predictions(self):
+            """Write all unconfirmed classifier predictions to the labels list"""
+            if not self.classifier_loaded:
+                messagebox.showwarning("Warning", "Please load classifier predictions first.")
+                return
+
+            confirm_count = 0
+            total_chunks = self.get_total_chunks()
+
+            # Iterate through all possible chunks
+            for i in range(total_chunks):
+                # If the chunk is unlabeled AND we have a prediction for it
+                if i < len(self.classifier_predictions) and self.labels[i] is None:
+                    self.labels[i] = self.classifier_predictions[i]
+                    self.confirmed_predictions.add(i)
+                    self.unsaved_changes += 1
+                    confirm_count += 1
+
+            if confirm_count > 0:
+                self.update_save_status()
+                self.update_display()
+                messagebox.showinfo("Success", f"Confirmed {confirm_count} predictions across the dataset.")
+
+                # Auto-save after a bulk operation
+                self.save_labels()
+            else:
+                messagebox.showinfo("Info", "No unconfirmed predictions were found.")
 
     def toggle_strike_mode(self):
         """Toggle between normal navigation and strike-only navigation"""
