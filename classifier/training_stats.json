@@ -74,5 +74,14 @@
       ]
     ]
   },
-  "validation_accuracy": 0.9056603773584906
+  "validation_accuracy": 1.0,
+  "validation_metrics": [
+    {
+      "behavior": "s",
+      "accuracy": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f_score": 1.0
+    }
+  ]
 }
